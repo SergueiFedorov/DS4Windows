@@ -43,6 +43,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Controllers\DS4Controller.cs" />
+    <Compile Include="Controllers\DS4ControllerBT.cs" />
+    <Compile Include="Controllers\DS4ControllerUSB.cs" />
     <Compile Include="DS4Device.cs" />
     <Compile Include="DS4Devices.cs" />
     <Compile Include="DS4State.cs" />

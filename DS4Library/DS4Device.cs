@@ -14,6 +14,7 @@ using System.Linq;
 using System.Text;
 using System.IO;
 using System.Collections;
+using DS4Library.Controllers;
 namespace DS4Library
 {
     public struct DS4Color
@@ -66,6 +67,8 @@ namespace DS4Library
 
         private const int BT_OUTPUT_REPORT_LENGTH = 78;
         private const int BT_INPUT_REPORT_LENGTH = 547;
+        private const int USB_INPUT_REPORT_LENGTH = 64;
+
         private HidDevice hDevice;
         private string Mac;
         private DS4State cState = new DS4State();
@@ -92,7 +95,13 @@ namespace DS4Library
         public bool IsExclusive { get { return HidDevice.IsExclusive; } }
         public bool IsDisconnecting { get; private set; }
 
-        public string MacAddress { get { return Mac; } }
+        public string MacAddress 
+        { 
+            get 
+            {
+                return controller.MacAddress;
+            } 
+        }
 
         public ConnectionType ConnectionType { get { return conType; } }
         public int IdleTimeout { get; set; } // behavior only active when > 0
@@ -163,15 +172,27 @@ namespace DS4Library
             return hidDevice.Capabilities.InputReportByteLength == 64 ? ConnectionType.USB : ConnectionType.BT;
         }
 
+        DS4Controller controller;
+
         public DS4Device(HidDevice hidDevice)
-        {            
+        {
+            if (HidConnectionType(hidDevice) == DS4Library.ConnectionType.BT)
+            {
+                controller = new DS4ControllerBT(this, hidDevice);
+            }
+            else
+            {
+                controller = new DS4ControllerUSB(this, hidDevice);
+            }
+
+            /*
             hDevice = hidDevice;
             conType = HidConnectionType(hDevice);
             Mac = hDevice.readSerial();
 
             if (conType == ConnectionType.USB)
             {
-                inputReport = new byte[64];
+                inputReport = new byte[USB_INPUT_REPORT_LENGTH];
                 outputReport = new byte[hDevice.Capabilities.OutputReportByteLength];
                 outputReportBuffer = new byte[hDevice.Capabilities.OutputReportByteLength];
             }
@@ -181,7 +202,8 @@ namespace DS4Library
                 inputReport = new byte[btInputReport.Length - 2];
                 outputReport = new byte[BT_OUTPUT_REPORT_LENGTH];
                 outputReportBuffer = new byte[BT_OUTPUT_REPORT_LENGTH];
-            }
+            }*/
+
             touchpad = new DS4Touchpad();
         }
 
@@ -190,13 +212,22 @@ namespace DS4Library
             if (ds4Input == null)
             {
                 Console.WriteLine(MacAddress.ToString() + " " + System.DateTime.UtcNow.ToString("o") + "> start");
-                sendOutputReport(true); // initialize the output report
+                //sendOutputReport(true); // initialize the output report
+
                 ds4Output = new Thread(performDs4Output);
                 ds4Output.Name = "DS4 Output thread: " + Mac;
                 ds4Output.Start();
                 ds4Input = new Thread(performDs4Input);
                 ds4Input.Name = "DS4 Input thread: " + Mac;
                 ds4Input.Start();
+
+                /*
+                ds4Output = new Thread(controller.ProcessOutput);
+                ds4Output.Name = "DS4 Output thread: " + Mac;
+                ds4Output.Start();
+                ds4Input = new Thread(controller.ProcessInput);
+                ds4Input.Name = "DS4 Input thread: " + Mac;
+                ds4Input.Start();*/
             }
             else
             {
@@ -221,7 +252,7 @@ namespace DS4Library
             StopOutputUpdate();
         }
 
-        private void StopOutputUpdate()
+        public void StopOutputUpdate()
         {
             if (ds4Output.ThreadState != System.Threading.ThreadState.Stopped || ds4Output.ThreadState != System.Threading.ThreadState.Aborted)
             {
@@ -237,8 +268,10 @@ namespace DS4Library
             }
         }
 
+        /*
         private bool writeOutput()
         {
+            /*
             if (conType == ConnectionType.BT)
             {
                 return hDevice.WriteOutputReportViaControl(outputReport);
@@ -247,15 +280,19 @@ namespace DS4Library
             {
                 return hDevice.WriteOutputReportViaInterrupt(outputReport, 8);
             }
-        }
+
+            
+        }*/
 
         private void performDs4Output()
         {
-            lock (outputReport)
+            //lock (outputReport)
             {
                 int lastError = 0;
                 while (true)
                 {
+                    this.controller.ProcessOutput();
+                    /*
                     if (writeOutput())
                     {
                         lastError = 0;
@@ -272,7 +309,7 @@ namespace DS4Library
                             Console.WriteLine(MacAddress.ToString() + " " + System.DateTime.UtcNow.ToString("o") + "> encountered write failure: " + thisError);
                             lastError = thisError;
                         }
-                    }
+                    }*/
                 }
             }
         }
@@ -291,6 +328,7 @@ namespace DS4Library
 
         public void BuildCurrentState(byte[] inputReport)
         {
+            /*
             DateTime utcNow = System.DateTime.UtcNow; 
 
             cState.ReportTimeStamp = utcNow;
@@ -384,13 +422,16 @@ namespace DS4Library
             {
                 currentErrors.Add("Index out of bounds: touchpad");
             }
+             * */
+
+            cState = controller.BuildCurrentState(inputReport);
         }
 
         private void performDs4Input()
         {
-            System.Timers.Timer readTimeout = new System.Timers.Timer(); // Await 30 seconds for the initial packet, then 3 seconds thereafter.
-            readTimeout.Elapsed += delegate { HidDevice.CancelIO(); };
-            readTimeout.Interval = 3000.0d;
+            //System.Timers.Timer readTimeout = new System.Timers.Timer(); // Await 30 seconds for the initial packet, then 3 seconds thereafter.
+            //readTimeout.Elapsed += delegate { HidDevice.CancelIO(); };
+            //readTimeout.Interval = 3000.0d;
 
             long oldtime = 0;
             Stopwatch sw = new Stopwatch();
@@ -414,9 +455,24 @@ namespace DS4Library
                     warn = true;
                 }
 
-                readTimeout.Enabled = true;
+                //readTimeout.Enabled = true;
+
+                this.controller.ProcessInput();
+
+                if (this.controller.Status == DS4ControllerStatus.DISCONNECTED)
+                {
+                    //This device is being removed. It has signaled that it is disconnecting
+                    if (Removal != null)
+                    {
+                        Removal(this, EventArgs.Empty);
+                    }
+                }
+
                 if (conType != ConnectionType.USB)
                 {
+                    
+
+                    /*
                     HidDevice.ReadStatus res = hDevice.ReadFile(btInputReport);
                     readTimeout.Enabled = false;
 
@@ -439,10 +495,11 @@ namespace DS4Library
 
                         status = InputLoopStatus.DISCONNECTED;
                         continue;
-                    }
+                    }*/
                 }
                 else
                 {
+                    /*
                     HidDevice.ReadStatus res = hDevice.ReadFile(inputReport);
                     readTimeout.Enabled = false;
                     if (res != HidDevice.ReadStatus.Success)
@@ -459,17 +516,19 @@ namespace DS4Library
 
                         status = InputLoopStatus.DISCONNECTED;
                         continue;
-                    }
+                    }*/
                 }
 
-                if (ConnectionType == ConnectionType.BT && btInputReport[0] != 0x11)
-	            {
+               // if (ConnectionType == ConnectionType.BT && btInputReport[0] != 0x11)
+	            //{
 	                //Received incorrect report, skip it
-	                continue;
-	            }
+	             //   continue;
+	            //}
 
                 this.resetHapticState();
-                this.BuildCurrentState(inputReport);
+                //this.BuildCurrentState(inputReport);
+
+                this.cState = this.controller.BuildCurrentState(inputReport);
 
                 DateTime utcNow = System.DateTime.UtcNow;
                 if (!isNonSixaxisIdle())
@@ -512,7 +571,8 @@ namespace DS4Library
         {
             hDevice.flush_Queue();
         }
-        private void sendOutputReport(bool synchronous)
+
+        public void sendOutputReport(bool synchronous)
         {
             setTestRumble();
             setHapticState();
@@ -549,11 +609,11 @@ namespace DS4Library
                     outputReportBuffer.CopyTo(outputReport, 0);
                     try
                     {
-                        if (!writeOutput())
+                        //if (!writeOutput())
                         {
-                            Console.WriteLine(MacAddress.ToString() + " " + System.DateTime.UtcNow.ToString("o") + "> encountered synchronous write failure: " + Marshal.GetLastWin32Error());
-                            ds4Output.Abort();
-                            ds4Output.Join();
+                            //Console.WriteLine(MacAddress.ToString() + " " + System.DateTime.UtcNow.ToString("o") + "> encountered synchronous write failure: " + Marshal.GetLastWin32Error());
+                            //ds4Output.Abort();
+                            //ds4Output.Join();
                         }
                     }
                     catch
