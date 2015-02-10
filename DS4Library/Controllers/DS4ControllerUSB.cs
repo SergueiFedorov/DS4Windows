@@ -47,5 +47,18 @@ namespace DS4Library.Controllers
                 this.Status = DS4ControllerStatus.DISCONNECTED;
             }
         }
+
+        public override void SendOutputReport()
+        {
+            this._outputReportBuffer[0] = 0x05;
+            this._outputReportBuffer[1] = 0xff;
+            this._outputReportBuffer[4] = 0x0; //fast motor
+            this._outputReportBuffer[5] = 0x0; //slow  motor
+            this._outputReportBuffer[6] = 0x0; //red
+            this._outputReportBuffer[7] = 0x0; //green
+            this._outputReportBuffer[8] = 0x0; //blue
+            this._outputReportBuffer[9] = 0x0; //flash on duration
+            this._outputReportBuffer[10] = 0x0; //flash off duration
+        }
     }
 }

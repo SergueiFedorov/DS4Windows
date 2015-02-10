@@ -212,7 +212,7 @@ namespace DS4Library
             if (ds4Input == null)
             {
                 Console.WriteLine(MacAddress.ToString() + " " + System.DateTime.UtcNow.ToString("o") + "> start");
-                //sendOutputReport(true); // initialize the output report
+                sendOutputReport(true); // initialize the output report
 
                 ds4Output = new Thread(performDs4Output);
                 ds4Output.Name = "DS4 Output thread: " + Mac;
@@ -288,7 +288,7 @@ namespace DS4Library
         {
             //lock (outputReport)
             {
-                int lastError = 0;
+                //int lastError = 0;
                 while (true)
                 {
                     this.controller.ProcessOutput();
@@ -576,6 +576,8 @@ namespace DS4Library
         {
             setTestRumble();
             setHapticState();
+
+            /*
             if (conType == ConnectionType.BT)
             {
                 outputReportBuffer[0] = 0x11;
@@ -600,29 +602,39 @@ namespace DS4Library
                 outputReportBuffer[8] = LightBarColor.blue; //blue
                 outputReportBuffer[9] = ledFlashOn; //flash on duration
                 outputReportBuffer[10] = ledFlashOff; //flash off duration
-            }
+            }*/
 
-            lock (outputReport)
+            this.controller.SendOutputReport();
+
+            //lock (outputReport)
             {
                 if (synchronous)
                 {
-                    outputReportBuffer.CopyTo(outputReport, 0);
-                    try
+                    //outputReportBuffer.CopyTo(outputReport, 0);
+                    //try
                     {
-                        //if (!writeOutput())
+                        //this.controller.WriteOutput();
+                        //if (!this.controller.WriteOutput())
                         {
-                            //Console.WriteLine(MacAddress.ToString() + " " + System.DateTime.UtcNow.ToString("o") + "> encountered synchronous write failure: " + Marshal.GetLastWin32Error());
-                            //ds4Output.Abort();
-                            //ds4Output.Join();
+                          //  Console.WriteLine(MacAddress.ToString() + " " + System.DateTime.UtcNow.ToString("o") + "> encountered synchronous write failure: " + Marshal.GetLastWin32Error());
+
+
+                            //if (ds4Output != null)
+                            {
+                              //  ds4Output.Abort();
+                               // ds4Output.Join();
+                            }
                         }
                     }
-                    catch
+                    //catch
                     {
+                        //throw;
                         // If it's dead already, don't worry about it.
                     }
                 }
                 else
                 {
+                    /*
                     bool output = false;
                     for (int i = 0; !output && i < outputReport.Length; i++)
                         output = outputReport[i] != outputReportBuffer[i];
@@ -630,7 +642,7 @@ namespace DS4Library
                     {
                         outputReportBuffer.CopyTo(outputReport, 0);
                         Monitor.Pulse(outputReport);
-                    }
+                    }*/
                 }
             }
         }
@@ -696,7 +708,7 @@ namespace DS4Library
             testRumble.RumbleMotorsExplicitlyOff = rightLightFastMotor == 0 && leftHeavySlowMotor == 0;
         }
 
-        private void setTestRumble()
+        public void setTestRumble()
         {
             if (testRumble.IsRumbleSet())
             {
@@ -762,7 +774,7 @@ namespace DS4Library
         }
 
         // Use the "most recently set" haptic state for each of light bar/motor.
-        private void setHapticState()
+        public void setHapticState()
         {
             int i = 0;
             DS4Color lightBarColor = LightBarColor;

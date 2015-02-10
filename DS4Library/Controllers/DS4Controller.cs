@@ -88,6 +88,8 @@ namespace DS4Library
         public abstract bool WriteOutput();
         public abstract void ProcessInput();
 
+        public abstract void SendOutputReport();
+
         public void ProcessOutput()
         {
             int lastError = 0;

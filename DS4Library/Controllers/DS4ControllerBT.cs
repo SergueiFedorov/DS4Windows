@@ -22,7 +22,27 @@ namespace DS4Library
 
         public override bool WriteOutput()
         {
-            return _device.WriteOutputReportViaControl(this._outputReport);
+            lock (this._outputReport)
+            {
+                return _device.WriteOutputReportViaControl(this._outputReport);
+            }
+        }
+
+        public override void SendOutputReport()
+        {
+            //this._ds4Device.setTestRumble();
+            //this._ds4Device.setHapticState();
+
+            this._outputReportBuffer[0] = 0x11;
+            this._outputReportBuffer[1] = 0x80;
+            this._outputReportBuffer[3] = 0xff;
+            this._outputReportBuffer[6] = 0x0; //fast motor
+            this._outputReportBuffer[7] = 0x0; //slow motor
+            this._outputReportBuffer[8] = 0x0; //red
+            this._outputReportBuffer[9] = 0x0; //green
+            this._outputReportBuffer[10] = 0x0; //blue
+            this._outputReportBuffer[11] = 0x0; //flash on duration
+            this._outputReportBuffer[12] = 0x0; //flash off duration
         }
 
         public override void ProcessInput()
